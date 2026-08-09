@@ -2,6 +2,7 @@ import { SMTPServer } from 'smtp-server';
 import { config } from './config.js';
 import { normalizeAddress } from './mail/utils.js';
 import { authenticateSession } from './handlers/auth.js';
+import { storeReceivedEmail } from './api-client.js';
 
 function createServer() {
   const server = new SMTPServer({
@@ -15,8 +16,8 @@ function createServer() {
     async onConnect(session, callback) {
       callback();
     },
-    async onAuth(auth, session, callback) {
-      const user = await authenticateSession(session);
+    async onAuth(auth, _session, callback) {
+      const user = await authenticateSession(auth);
       if (user) {
         return callback(null, { user: user.username });
       }
@@ -33,9 +34,27 @@ function createServer() {
     onData(stream, session, callback) {
       const chunks = [];
       stream.on('data', (chunk) => chunks.push(chunk));
-      stream.on('end', () => {
+      stream.on('end', async () => {
         const message = Buffer.concat(chunks).toString('utf8');
         console.log(`[smtp] received message for ${session.envelope.rcptTo.length} recipient(s)`);
+
+        const recipient = session.envelope.rcptTo[0]?.address || '';
+        const username = session.auth?.user?.username || '';
+
+        try {
+          await storeReceivedEmail({
+            baseUrl: config.apiBaseUrl,
+            to: recipient,
+            from: session.envelope.mailFrom?.address || '',
+            subject: '',
+            body: message,
+            recipientUsername: username
+          });
+          console.log(`[smtp] stored email for ${recipient}`);
+        } catch (error) {
+          console.error('[smtp] failed to store email', error.message);
+        }
+
         callback();
       });
       stream.on('error', (error) => callback(error));

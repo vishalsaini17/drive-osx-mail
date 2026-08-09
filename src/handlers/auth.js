@@ -1,9 +1,9 @@
 import { config } from '../config.js';
 import { fetchApiProfile } from '../api-client.js';
 
-export async function authenticateSession(session) {
-  const username = session?.user || '';
-  const password = session?.password || '';
+export async function authenticateSession(auth) {
+  const username = auth?.username || '';
+  const password = auth?.password || '';
 
   if (!username || !password) {
     return null;
