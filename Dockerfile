@@ -4,13 +4,12 @@ FROM node:24-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 COPY --chown=node:node . .
 
-ENV NODE_ENV=production
-EXPOSE 2525
-
 USER node
+
+EXPOSE 2525
 
 CMD ["npm", "start"]
