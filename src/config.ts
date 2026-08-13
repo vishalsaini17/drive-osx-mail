@@ -11,6 +11,12 @@ export interface MailConfig {
   host: string;
   apiBaseUrl: string;
   apiVersion: string;
+  /**
+   * Shared secret proving to the API that a delivery came from this gateway.
+   * Must match MAIL_GATEWAY_TOKEN on the API; without it the API rejects
+   * deliveries in production.
+   */
+  apiGatewayToken: string;
   maxConnections: number;
   maxMessageBytes: number;
   banner: string;
@@ -32,6 +38,7 @@ export const config: MailConfig = {
   host: process.env.HOST || '0.0.0.0',
   apiBaseUrl: (process.env.API_BASE_URL || 'http://localhost:7000').replace(/\/$/, ''),
   apiVersion: process.env.API_VERSION || 'v1',
+  apiGatewayToken: process.env.MAIL_GATEWAY_TOKEN || '',
   maxConnections: number('MAX_CONNECTIONS', 100),
   maxMessageBytes: number('MAX_MESSAGE_BYTES', 25 * 1024 * 1024),
   banner: process.env.SMTP_BANNER || 'Drive OSX Mail Service Ready',

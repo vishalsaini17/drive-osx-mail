@@ -29,7 +29,14 @@ async function request<T>(path: string, init: RequestInit & { timeoutMs?: number
     const response = await fetch(apiUrl(path), {
       ...init,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        // Identifies this process as the SMTP gateway. Endpoints that cannot
+        // carry a user session (inbound delivery, mailbox credential checks)
+        // accept it in place of a bearer token.
+        ...(config.apiGatewayToken ? { 'X-Mail-Gateway-Token': config.apiGatewayToken } : {}),
+        ...(init.headers ?? {}),
+      },
     });
 
     const text = await response.text();
