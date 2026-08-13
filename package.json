@@ -1,19 +1,27 @@
 {
   "name": "drive-osx-mail",
-  "version": "1.0.0",
-  "description": "mail server",
+  "version": "2.0.0",
+  "description": "SMTP gateway for the Drive OSX platform",
   "license": "SEE LICENSE IN LICENSE",
   "author": "vishal",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "test": "node --test"
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@types/node": "^26.1.1",
-    "dotenv": "^17.4.2",
-    "smtp-server": "^3.19.2"
+    "dotenv": "^16.4.5",
+    "smtp-server": "^3.13.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/smtp-server": "^3.5.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
