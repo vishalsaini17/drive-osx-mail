@@ -6,6 +6,14 @@ node_modules/
 .env.local
 .env.*.local
 
+# DKIM signing key — generated locally by scripts/generate-dkim-key.sh,
+# never committed. Losing it just means re-generating and re-publishing
+# a new DNS record; committing it would let anyone forge signed mail.
+secrets/
+
+# STARTTLS certificate — never committed, same reasoning as secrets/ above.
+tls/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

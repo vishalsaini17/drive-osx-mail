@@ -1,8 +1,32 @@
+import { readFileSync } from 'node:fs';
 import { SMTPServer, type SMTPServerSession } from 'smtp-server';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { authenticateMailbox, deliverMessage } from './api-client.js';
 import { isValidAddress, localPart, normalizeAddress } from './mail/address.js';
+
+/**
+ * Real cert for STARTTLS, when configured. Without one, smtp-server still
+ * offers STARTTLS using its own well-known test certificate — present, but
+ * trusted by nobody, so this is worth logging loudly rather than leaving
+ * silent in production.
+ */
+function loadTlsCertificate(): { key: Buffer; cert: Buffer } | Record<string, never> {
+  if (!config.tlsKeyPath || !config.tlsCertPath) {
+    logger.info('TLS_KEY_PATH/TLS_CERT_PATH not set — STARTTLS will use the smtp-server default test certificate');
+    return {};
+  }
+  try {
+    return { key: readFileSync(config.tlsKeyPath), cert: readFileSync(config.tlsCertPath) };
+  } catch (error) {
+    logger.error('failed to read TLS certificate, falling back to the default test certificate', {
+      keyPath: config.tlsKeyPath,
+      certPath: config.tlsCertPath,
+      error: (error as Error).message,
+    });
+    return {};
+  }
+}
 
 /**
  * SMTP gateway. It accepts inbound mail and hands each message to the platform
@@ -19,6 +43,7 @@ export function createServer(): SMTPServer {
     size: config.maxMessageBytes,
     authOptional: true,
     allowInsecureAuth: false,
+    ...loadTlsCertificate(),
 
     onConnect(session, callback) {
       logger.debug('connection opened', { remoteAddress: session.remoteAddress });
