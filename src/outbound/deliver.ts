@@ -44,6 +44,7 @@ async function trySend(
   envelopeFrom: string,
   envelopeTo: string,
   raw: string,
+  auth?: { user: string; pass: string },
 ): Promise<DeliveryResult> {
   const privateKey = loadDkimPrivateKey();
 
@@ -51,15 +52,18 @@ async function trySend(
     host,
     port,
     secure: false,
-    // STARTTLS is negotiated opportunistically. Most receiving MTAs on the
-    // public internet present a certificate that doesn't cover every
-    // hostname the box answers to; refusing to encrypt at all is worse than
-    // accepting that mismatch for an opportunistic, best-effort hop.
-    tls: { rejectUnauthorized: false },
+    // Opportunistic direct-to-MX delivery (no auth) has no secret to protect
+    // and most receiving MTAs on the public internet present a certificate
+    // that doesn't cover every hostname the box answers to — refusing to
+    // encrypt at all there is worse than accepting that mismatch. A relay
+    // connection (auth set) is a different story: it carries real
+    // credentials, so it must not accept a MITM'd certificate.
+    tls: { rejectUnauthorized: Boolean(auth) },
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 20_000,
     name: config.mailDomain,
+    ...(auth ? { auth } : {}),
     // Unsigned mail is likely to be rejected or spam-bucketed by real
     // providers (Gmail, Outlook) — see scripts/generate-dkim-key.sh.
     ...(privateKey
@@ -103,7 +107,11 @@ function classifyFailure(host: string, error: unknown): DeliveryResult {
  */
 export async function deliverViaSmtp(envelopeFrom: string, envelopeTo: string, raw: string): Promise<DeliveryResult> {
   if (config.smtpRelayHost) {
-    return trySend(config.smtpRelayHost, config.smtpRelayPort, envelopeFrom, envelopeTo, raw);
+    const auth =
+      config.smtpRelayUser && config.smtpRelayPassword
+        ? { user: config.smtpRelayUser, pass: config.smtpRelayPassword }
+        : undefined;
+    return trySend(config.smtpRelayHost, config.smtpRelayPort, envelopeFrom, envelopeTo, raw, auth);
   }
 
   const domain = domainPart(envelopeTo);
