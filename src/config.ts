@@ -36,6 +36,8 @@ export interface MailConfig {
    */
   smtpRelayHost: string | null;
   smtpRelayPort: number;
+  smtpRelayUser: string | null;
+  smtpRelayPassword: string | null;
   /** DKIM selector — the "mail" in "mail._domainkey.<domain>". */
   dkimSelector: string;
   /**
@@ -79,6 +81,12 @@ export const config: MailConfig = {
   relayPort: number('RELAY_PORT', 2526),
   smtpRelayHost: process.env.SMTP_RELAY_HOST || null,
   smtpRelayPort: number('SMTP_RELAY_PORT', 1025),
+  // Unset for Mailpit (dev) or any other relay that takes unauthenticated
+  // connections. Real transactional providers (SendGrid, Mailgun, SES,
+  // Postmark) require both — set when pointing SMTP_RELAY_HOST at one of
+  // those, typically to work around outbound port 25 being blocked.
+  smtpRelayUser: process.env.SMTP_RELAY_USER || null,
+  smtpRelayPassword: process.env.SMTP_RELAY_PASSWORD || null,
   dkimSelector: process.env.DKIM_SELECTOR || 'mail',
   dkimPrivateKeyPath: process.env.DKIM_PRIVATE_KEY_PATH || null,
   tlsKeyPath: process.env.TLS_KEY_PATH || null,
