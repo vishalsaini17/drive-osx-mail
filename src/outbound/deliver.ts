@@ -114,7 +114,11 @@ export async function deliverViaSmtp(envelopeFrom: string, envelopeTo: string, r
       config.smtpRelayUser && config.smtpRelayPassword
         ? { user: config.smtpRelayUser, pass: config.smtpRelayPassword }
         : undefined;
-    return trySend(config.smtpRelayHost, config.smtpRelayPort, envelopeFrom, envelopeTo, raw, auth);
+    // The relay's own approved-sender restriction applies to the envelope,
+    // not the message — the recipient still sees the real sender in the
+    // "From:" header inside `raw`, untouched below.
+    const relayEnvelopeFrom = config.smtpRelayEnvelopeFrom || envelopeFrom;
+    return trySend(config.smtpRelayHost, config.smtpRelayPort, relayEnvelopeFrom, envelopeTo, raw, auth);
   }
 
   const domain = domainPart(envelopeTo);

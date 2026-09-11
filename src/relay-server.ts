@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { config } from './config.js';
 import { deliverViaSmtp } from './outbound/deliver.js';
+import { ensureApprovedSender } from './outbound/oci-senders.js';
 import { logger } from './logger.js';
 
 const GATEWAY_HEADER = 'x-mail-gateway-token';
@@ -60,6 +61,15 @@ function isDeliverRequest(value: unknown): value is DeliverRequest {
   return typeof v.envelopeFrom === 'string' && typeof v.envelopeTo === 'string' && typeof v.raw === 'string';
 }
 
+interface ProvisionSenderRequest {
+  emailAddress: string;
+}
+
+function isProvisionSenderRequest(value: unknown): value is ProvisionSenderRequest {
+  if (!value || typeof value !== 'object') return false;
+  return typeof (value as Record<string, unknown>).emailAddress === 'string';
+}
+
 /**
  * Outbound counterpart to the SMTP server: the platform API hands off a
  * fully-composed message here and this service does the MX lookup + SMTP
@@ -68,7 +78,7 @@ function isDeliverRequest(value: unknown): value is DeliverRequest {
  */
 export function startRelayServer(): ReturnType<typeof createServer> {
   const server = createServer((req, res) => {
-    if (req.method !== 'POST' || req.url !== '/deliver') {
+    if (req.method !== 'POST' || (req.url !== '/deliver' && req.url !== '/provision-sender')) {
       sendJson(res, 404, { message: 'Not found' });
       return;
     }
@@ -76,6 +86,11 @@ export function startRelayServer(): ReturnType<typeof createServer> {
     if (!tokenMatches(req.headers[GATEWAY_HEADER] as string | undefined, config.apiGatewayToken)) {
       logger.error('rejected outbound relay request: bad or missing gateway token');
       sendJson(res, 401, { message: 'Invalid or missing gateway token' });
+      return;
+    }
+
+    if (req.url === '/provision-sender') {
+      void handleProvisionSender(req, res);
       return;
     }
 
@@ -130,4 +145,36 @@ async function handleDeliver(req: IncomingMessage, res: ServerResponse): Promise
     logger.error('unexpected error during outbound delivery', { error: (error as Error).message });
     sendJson(res, 502, { status: 'failed', permanent: false, error: (error as Error).message });
   }
+}
+
+/**
+ * Called by the API once per signup so the new mailbox can send through
+ * whichever relay is currently active — a no-op success when that relay
+ * doesn't require sender approval (see ensureApprovedSender).
+ */
+async function handleProvisionSender(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let parsed: unknown;
+  try {
+    const body = await readBody(req);
+    parsed = JSON.parse(body);
+  } catch (error) {
+    sendJson(res, 400, { message: `Invalid request body: ${(error as Error).message}` });
+    return;
+  }
+
+  if (!isProvisionSenderRequest(parsed)) {
+    sendJson(res, 400, { message: 'emailAddress is required' });
+    return;
+  }
+
+  const result = await ensureApprovedSender(parsed.emailAddress);
+
+  if (result.status === 'ok' || result.status === 'skipped') {
+    sendJson(res, 200, result);
+    return;
+  }
+
+  // Same convention as /deliver: permanent rejections should not be retried
+  // by the caller, transient ones (502) should.
+  sendJson(res, result.permanent ? 422 : 502, result);
 }
