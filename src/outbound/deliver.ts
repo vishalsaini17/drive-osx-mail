@@ -57,8 +57,11 @@ async function trySend(
     // that doesn't cover every hostname the box answers to — refusing to
     // encrypt at all there is worse than accepting that mismatch. A relay
     // connection (auth set) is a different story: it carries real
-    // credentials, so it must not accept a MITM'd certificate.
+    // credentials, so it must not accept a MITM'd certificate, and must not
+    // fall back to sending AUTH in the clear if the relay fails to offer
+    // STARTTLS.
     tls: { rejectUnauthorized: Boolean(auth) },
+    requireTLS: Boolean(auth),
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 20_000,

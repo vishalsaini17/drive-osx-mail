@@ -28,11 +28,12 @@ export interface MailConfig {
   /** Internal HTTP port the platform API calls to hand off outbound mail. */
   relayPort: number;
   /**
-   * Dev-only escape hatch: when set, outbound delivery always connects here
-   * instead of resolving MX records — real port-25 delivery does not work
-   * from a laptop or most cloud VMs (blocked outbound, no reverse DNS, no
-   * sending reputation). Point this at a local catch-all like Mailpit.
-   * Must be unset in production, where real MX lookups are required.
+   * The entire switch between the two outbound delivery layers: when set,
+   * outbound delivery always connects here (authenticated relay) instead of
+   * resolving MX records and delivering direct-to-MX on port 25. See
+   * SMTP_RELAY_HOST in .env.example for the current production setup (OCI
+   * Email Delivery, standing in for direct delivery until outbound port 25
+   * is open) and dev setup (a local catch-all like Mailpit, unauthenticated).
    */
   smtpRelayHost: string | null;
   smtpRelayPort: number;
