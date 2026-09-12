@@ -28,16 +28,29 @@ export interface MailConfig {
   /** Internal HTTP port the platform API calls to hand off outbound mail. */
   relayPort: number;
   /**
-   * Dev-only escape hatch: when set, outbound delivery always connects here
-   * instead of resolving MX records — real port-25 delivery does not work
-   * from a laptop or most cloud VMs (blocked outbound, no reverse DNS, no
-   * sending reputation). Point this at a local catch-all like Mailpit.
-   * Must be unset in production, where real MX lookups are required.
+   * The entire switch between the two outbound delivery layers: when set,
+   * outbound delivery always connects here (authenticated relay) instead of
+   * resolving MX records and delivering direct-to-MX on port 25. See
+   * SMTP_RELAY_HOST in .env.example for the current production setup (OCI
+   * Email Delivery, standing in for direct delivery until outbound port 25
+   * is open) and dev setup (a local catch-all like Mailpit, unauthenticated).
    */
   smtpRelayHost: string | null;
   smtpRelayPort: number;
   smtpRelayUser: string | null;
   smtpRelayPassword: string | null;
+  /**
+   * Overrides the SMTP envelope sender (MAIL FROM) for relay deliveries only
+   * — direct-to-MX delivery always uses the real sender's address. Every
+   * user's own address (e.g. alice@driveosx.com) is still what recipients
+   * see in the "From:" header; this only changes what the relay itself
+   * authenticates the send against. Needed because OCI Email Delivery (and
+   * most transactional relays) only accept mail from pre-approved sender
+   * addresses, and approving one address per signup does not scale. Safe for
+   * SPF/DKIM/DMARC: they check the envelope/header *domain*, not the local
+   * part, and the domain is unchanged.
+   */
+  smtpRelayEnvelopeFrom: string | null;
   /** DKIM selector — the "mail" in "mail._domainkey.<domain>". */
   dkimSelector: string;
   /**
@@ -55,6 +68,22 @@ export interface MailConfig {
    */
   tlsKeyPath: string | null;
   tlsCertPath: string | null;
+  /**
+   * Credentials for OCI's control-plane API (distinct from the SMTP_RELAY_*
+   * credentials above, which only authenticate the SMTP connection itself).
+   * Used solely to auto-approve each new mailbox as an OCI Email Delivery
+   * sender at signup — see oci-senders.ts. All five must be set together;
+   * left unset, POST /provision-sender no-ops (dev, or once delivery has
+   * switched back to direct-to-MX, where no such approval exists).
+   */
+  ociTenancyOcid: string | null;
+  ociUserOcid: string | null;
+  ociKeyFingerprint: string | null;
+  ociPrivateKeyPath: string | null;
+  ociRegion: string | null;
+  ociEmailCompartmentId: string | null;
+  /** Override for the control-plane host; otherwise derived from ociRegion. */
+  ociEmailApiHost: string | null;
 }
 
 function number(name: string, fallback: number): number {
@@ -87,10 +116,18 @@ export const config: MailConfig = {
   // those, typically to work around outbound port 25 being blocked.
   smtpRelayUser: process.env.SMTP_RELAY_USER || null,
   smtpRelayPassword: process.env.SMTP_RELAY_PASSWORD || null,
+  smtpRelayEnvelopeFrom: process.env.SMTP_RELAY_ENVELOPE_FROM || null,
   dkimSelector: process.env.DKIM_SELECTOR || 'mail',
   dkimPrivateKeyPath: process.env.DKIM_PRIVATE_KEY_PATH || null,
   tlsKeyPath: process.env.TLS_KEY_PATH || null,
   tlsCertPath: process.env.TLS_CERT_PATH || null,
+  ociTenancyOcid: process.env.OCI_TENANCY_OCID || null,
+  ociUserOcid: process.env.OCI_USER_OCID || null,
+  ociKeyFingerprint: process.env.OCI_API_KEY_FINGERPRINT || null,
+  ociPrivateKeyPath: process.env.OCI_API_PRIVATE_KEY_PATH || null,
+  ociRegion: process.env.OCI_REGION || null,
+  ociEmailCompartmentId: process.env.OCI_EMAIL_COMPARTMENT_ID || null,
+  ociEmailApiHost: process.env.OCI_EMAIL_API_HOST || null,
 };
 
 export const apiUrl = (path: string): string => `${config.apiBaseUrl}/api/${config.apiVersion}${path}`;
