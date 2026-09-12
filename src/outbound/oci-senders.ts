@@ -30,7 +30,10 @@ function loadClient(): OciClient | null {
       fingerprint: ociKeyFingerprint,
       privateKey: readFileSync(ociPrivateKeyPath, 'utf8'),
       compartmentId: ociEmailCompartmentId,
-      apiHost: config.ociEmailApiHost || `email.${ociRegion}.oci.oraclecloud.com`,
+      // "ctrl." prefix confirmed against the OCI SDK's own EmailClient
+      // source (service_endpoint_template) — easy to miss, since the SMTP
+      // relay endpoint (smtp.email.<region>...) has no such prefix.
+      apiHost: config.ociEmailApiHost || `ctrl.email.${ociRegion}.oci.oraclecloud.com`,
     };
   } catch (error) {
     logger.error('failed to read OCI API private key, sender auto-approval disabled', {
